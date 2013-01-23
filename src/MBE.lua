@@ -105,7 +105,7 @@ local function ready()
       elseif param2 == "MBE-Reboot" then
         os.reboot()
       elseif param2 == "MBE-Update" then
-        pastebin("", "MBE")
+        pastebin("VYrjGe9G", "startup")
         os.reboot()
       end
     elseif event == "char" then -- handle direct input
