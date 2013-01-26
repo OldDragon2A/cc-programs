@@ -9,12 +9,11 @@
 
 local position         = { 0, 0, 0, 3 }
 local drop_position    = { 0, 0, 0, 1 }
-local drop_slots       = { 1, 10 }
-local torch_slot       = 11
-local fuel_slot        = 12
-local fill_slot        = 13
-local drop_chest_slot  = 14
-local torch_chest_slot = 15
+local drop_slots       = { 1, 11 }
+local drop_chest_slot  = 12
+local torch_slot       = 13
+local torch_chest_slot = 14
+local fuel_slot        = 15
 local fuel_chest_slot  = 16
 local refuel_level     = 0
 local torch_spacing    = 7
@@ -139,20 +138,34 @@ local function getEmptySlots()
   return numslots
 end
 
-local function dig()
-  if state.dig_mode and turtle.dig() and getEmptySlots() == 0 then dropOff() end
+local function dig(all)
+  if all == nil then all = true end
+  if not state.dig_mode then return end
+  while turtle.detect() do
+    while turtle.suck() do if getEmptySlots() < 2 then dropOff() end end
+    if turtle.dig() and getEmptySlots() < 2 then dropOff() end
+    if not all then break end
+  end
 end
-local function digUp()
-  if state.dig_mode and turtle.digUp() and getEmptySlots() == 0 then dropOff() end
+local function digUp(all)
+  if all == nil then all = true end
+  if not state.dig_mode then return end
+  while turtle.detectUp() do
+    while turtle.suckUp() do if getEmptySlots() < 2 then dropOff() end end
+    if turtle.digUp() and getEmptySlots() < 2 then dropOff() end
+    if not all then break end
+  end
 end
 local function digDown()
-  if state.dig_mode and turtle.digDown() and getEmptySlots() == 0 then dropOff() end
+  if not state.dig_mode then return end
+  while turtle.suckDown() do if getEmptySlots() < 2 then dropOff() end end
+  if turtle.digDown() and getEmptySlots() < 2 then dropOff() end
 end
 
 local move = {}
 function move.forward()
   turtle.attack()
-  while turtle.detect() do dig() sleep(0.4) end
+  dig()
   if turtle.getFuelLevel() <= refuel_level then refuel() end
   if turtle.forward() then
     if     (position[4] == 0) then updatePosition(3,1)
@@ -180,7 +193,7 @@ function move.back()
 end
 function move.up()
   turtle.attackUp()
-  while turtle.detectUp() do digUp() sleep(0.4) end
+  digUp()
   if turtle.getFuelLevel() <= refuel_level then refuel() end
   local state = turtle.up()
   if (state) then updatePosition(2,1) end
@@ -188,7 +201,7 @@ function move.up()
 end
 function move.down()
   turtle.attackDown()
-  if turtle.detectDown() then digDown() end
+  digDown()
   if turtle.getFuelLevel() <= refuel_level then refuel() end
   local state = turtle.down()
   if (state) then updatePosition(2,-1) end
@@ -244,22 +257,22 @@ local function moveZ(z, wait)
 end
 local function gotoMine(p, wait)
   moveX(p[1], wait)
-  moveY(p[2], wait)
   moveZ(p[3], wait)
+  moveY(p[2], wait)
   if (p[4] ~= nil) then move.turn(p[4]) end
 end
 local function gotoSimple(p, wait)
-  if(p[3] == nil) then
-    moveX(p[1], wait)
-    moveZ(p[3], wait)
-  elseif(position[2] > p[2]) then
-    moveY(p[2], wait)
-    moveZ(p[3], wait)
-    moveX(p[1], wait)
-  else
-    moveX(p[1], wait)
-    moveZ(p[3], wait)
-    moveY(p[2], wait)
+  if (wait == nil) then wait = true end
+  while not inPosition(p) do
+    if(p[3] == nil) then
+      moveX(p[1], false)
+      moveZ(p[3], false)
+    else
+      moveX(p[1], false)
+      moveZ(p[3], false)
+      moveY(p[2], false)
+    end
+    if wait then sleep(0.1) else break end
   end
   if (p[4] ~= nil) then move.turn(p[4]) end
 end
@@ -316,9 +329,10 @@ local function gotoSmart(p)
     end
     last = deepcopy(position)
   end
-
+  
+  if not inPosition(p) then gotoSimple(p, false) end
   if (p[4] ~= nil) then move.turn(p[4]) end
-  return true
+  return inPosition(p)
 end
 
 local function getOpenSpace()
@@ -350,7 +364,7 @@ local function useChest(slot, callback, param)
   local chest = getOpenSpace()
   local result = false
   local op = false
-  if chest.place ~= nil then
+  if chest ~= nil then
     turtle.select(slot)
     if chest.place() then
       result = true
@@ -364,15 +378,13 @@ local function useChest(slot, callback, param)
   if op then
     move.left()
     move.left()
-    if chest.place ~= nil then
+    if turtle.detect() then
       turtle.select(slot)
-      if chest.place() then
+      if turtle.place() then
         result = true
         if callback ~= nil then result = callback(chest, param) end
         turtle.select(slot)
-        chest.dig()
-      else
-        op = true
+        turtle.dig()
       end
     end
     move.left()
@@ -399,26 +411,26 @@ end
 dropOff = function ()
   if state.dropping then return true end
   if state.verbose then writeLog("Drop Off") end
+  local nochest
   state.dropping = true
+  state.dig_mode = false
+  local resume = deepcopy(position)
   repeat
     if not useChest(drop_chest_slot, dropItemsInChest) then
-      local resume = deepcopy(position)
-      state.dig_mode = false
       gotoSmart(drop_position)
-      repeat
-        if turtle.detect() then
-          for i = drop_slots[1], drop_slots[2] do
-            turtle.select(i)
-            turtle.drop()
-          end
-        else
-          sleep(1)
+      if turtle.detect() then
+        for i = drop_slots[1], drop_slots[2] do
+          turtle.select(i)
+          turtle.drop()
         end
-      until getEmptySlots() ~= 0
-      gotoSmart(resume)
-      state.dig_mode = true
+      else
+        writeLog("No Chest Found")
+        sleep(1)
+      end
     end
-  until getEmptySlots() ~= 0
+  until getEmptySlots() > 1
+  gotoSmart(resume)
+  state.dig_mode = true
   state.dropping = false
   turtle.select(drop_slots[1])
   if state.verbose then writeLog("Resuming") end
@@ -448,16 +460,6 @@ refuel = function ()
   end
   turtle.select(drop_slots[1])
   if state.verbose then writeLog("Resuming") end
-end
-
-local function placeFill(face)
-  if turtle.getItemCount(torch_slot) ~= 0 then
-    turtle.select(fill_slot)
-    if face == 0 then turtle.placeDown()
-    elseif face == 5 then turtle.placeUp()
-    else turtle.place()
-    end
-  end
 end
 
 local function placeTorch(face, surface)
@@ -589,6 +591,7 @@ local function mine(size)
     if h == 3 then y = y + d[2] end
     y = y + d[2]
   end
+  state.dig_mode = false
   gotoSmart(drop_position)
   dropOff()
   gotoSimple(rest)
@@ -604,8 +607,13 @@ local function usage()
   print("  -s space  set the torch spacing")
   print("  -t        wait for torches if out")
   print("  -v level  enable verbose output")
+  print()
+  print("Drop EC: " .. drop_chest_slot)
+  print("Torch: " .. torch_slot .. " (EC: " .. torch_chest_slot .. ")")
+  print("Fuel: " .. fuel_slot .. " (EC: " .. fuel_chest_slot .. ")")
 end
-local function main(tArgs)
+local function main(...)
+  local tArgs = {}
   for opt, arg in getopt(":f:l:ns:tv:", ...) do
     if     opt == 'f' then refuel_level = tonumber(arg)
     elseif opt == 'l' then state.log_file = arg
@@ -623,4 +631,4 @@ local function main(tArgs)
   end
 end
 
-main({})
+main(...)
