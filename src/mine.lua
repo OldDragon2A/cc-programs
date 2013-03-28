@@ -145,6 +145,7 @@ local function dig(all)
     while turtle.suck() do if getEmptySlots() < 2 then dropOff() end end
     if turtle.dig() and getEmptySlots() < 2 then dropOff() end
     if not all then break end
+    sleep(0.4)
   end
 end
 local function digUp(all)
@@ -154,6 +155,7 @@ local function digUp(all)
     while turtle.suckUp() do if getEmptySlots() < 2 then dropOff() end end
     if turtle.digUp() and getEmptySlots() < 2 then dropOff() end
     if not all then break end
+    sleep(0.4)
   end
 end
 local function digDown()
@@ -579,7 +581,8 @@ local function mine(size)
           elseif current[1] == final[1]          and                zf - zd == zts then torch(zfb)
           elseif current[2] == yf and zf == zts + zd and xf == xts then torch(zfb, -1)
           elseif current[2] == yf and xf == xts + xd and zf == zts then torch(xfb, -1)
-          elseif current[2] == ya and xf == xts      and zf == zts then torch(-1, -1)
+          elseif current[2] == ya and zf == zts + zd and xf == xts then move.down() torch(zfb, -1) move.up()
+          elseif current[2] == ya and xf == xts + xd and zf == zts then move.down() torch(xfb, -1) move.up()
           end
         end
         
